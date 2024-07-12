@@ -154,6 +154,7 @@ class Pet:
     def quit(self):
         self.root.destroy()
 
+
 if __name__ == '__main__':
     print('Initializing your desktop pet...')
     print('To quit, right click on the pet')

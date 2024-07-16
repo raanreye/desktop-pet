@@ -115,6 +115,13 @@ class Pet:
         self._handle_movement()
         self._handle_sleep()
         self._handle_home()
+        
+        if not self.in_home and not self.sleeping:
+            self._track_cursor()
+        
+        if self.heart_timer > 0:
+            self.heart_timer -= self.delay
+        
         self.root.after(self.delay, self.update)
 
     def _update_animation(self):
@@ -148,8 +155,12 @@ class Pet:
         print("Detected left click")
 
     def on_key_press(self, event):
-        if event.char.lower() == 'q':
+        if event.char.lower() == 'l':
             self.quit()
+
+    def _cursor_on_pet(self, cursor_x, cursor_y):
+        return (self.curr_width <= cursor_x <= self.curr_width + 40 and
+                self.curr_height <= cursor_y <= self.curr_height + 35)
 
     def _handle_home(self):
         if self.in_home:
@@ -161,13 +172,16 @@ class Pet:
                 self.curr_height = self.home_y + 30  # Align vertically with the middle of the house
                 self._update_geometry()
                 self.current_animation = 'idle'
+                self.animation_index = 0
+                self.heart_timer = 0  # Reset heart timer
+                self.sleep_timer = random.randint(10000, 20000)  # Reset sleep timer
                 self.root.deiconify()  # Show the pet
                 self._search_for_mouse()
         else:
             home_center_x = self.home_x + 30
             home_center_y = self.home_y + 30
             distance_to_home = ((self.curr_width - home_center_x) ** 2 + (self.curr_height - home_center_y) ** 2) ** 0.5
-            if distance_to_home < 80:  # If pet is close to home
+            if distance_to_home < 50:  # If pet is close to home
                 self.in_home = True
                 self.home_timer = random.randint(3000, 8000)  # 3-8 seconds in home
                 self.root.withdraw()  # Hide the pet
@@ -181,7 +195,7 @@ class Pet:
 
     def _go_home(self):
         if not self.in_home:
-            home_center_x = self.home_x + 30
+            home_center_x = self.home_x
             home_center_y = self.home_y + 30
             
             # Calculate direction to home
@@ -189,7 +203,7 @@ class Pet:
             dy = home_center_y - self.curr_height
             distance = (dx**2 + dy**2)**0.5
             
-            if distance > self.move_speed:
+            if distance > self.move_speed + 50:  # Stop 50 pixels before the house
                 # Move towards home
                 self.curr_width += int(dx / distance * self.move_speed)
                 self.curr_height += int(dy / distance * self.move_speed)
@@ -214,33 +228,44 @@ class Pet:
         self._update_geometry()
 
     def _track_cursor(self):
-        cursor_x, cursor_y = self.root.winfo_pointerx(), self.root.winfo_pointery()
+        cursor_x, cursor_y = self.root.winfo_pointerxy()
         if self._cursor_on_pet(cursor_x, cursor_y):
             self._handle_pet_interaction()
         else:
             self._handle_cursor_movement(cursor_x, cursor_y)
 
-    def _cursor_on_pet(self, cursor_x, cursor_y):
-        return (self.curr_width <= cursor_x <= self.curr_width + 40 and
-                self.curr_height <= cursor_y <= self.curr_height + 35)
+    def _handle_cursor_movement(self, cursor_x, cursor_y):
+        if self.heart_timer <= 0:
+            if cursor_x != self.prev_cursor_x or cursor_y != self.prev_cursor_y:
+                next_animation = 'walk_left' if cursor_x < self.curr_width else 'walk_right'
+                if self.current_animation != next_animation:
+                    self.current_animation = next_animation
+                    self.animation_index = 0
+                self.prev_cursor_x, self.prev_cursor_y = cursor_x, cursor_y
 
     def _handle_pet_interaction(self):
-        if self.current_animation != 'heart':
+        if self.current_animation != 'heart' and self.heart_timer <= 0:
             self.current_animation = 'heart'
             self.animation_index = 0
             self.heart_timer = 5000
             self.sleep_timer = random.randint(5000, 10000)
-            self.root.after(5000, self._go_home)  # Schedule going home after 5 seconds
+            self.root.after(5000, self._start_go_home)  # Schedule going home after 5 seconds
 
-    def _handle_cursor_movement(self, cursor_x, cursor_y):
-        if self.heart_timer <= 0:
+    def _start_go_home(self):
+        if self.current_animation == 'heart':
+            self._go_home()
+        else:
             self.current_animation = 'idle'
-        if cursor_x != self.prev_cursor_x or cursor_y != self.prev_cursor_y:
-            next_animation = 'walk_left' if cursor_x < self.curr_width else 'walk_right'
-            if self.current_animation != next_animation:
-                self.current_animation = next_animation
-                self.animation_index = 0
-            self.prev_cursor_x, self.prev_cursor_y = cursor_x, cursor_y
+
+        def _handle_cursor_movement(self, cursor_x, cursor_y):
+            if self.heart_timer <= 0:
+                self.current_animation = 'idle'
+            if cursor_x != self.prev_cursor_x or cursor_y != self.prev_cursor_y:
+                next_animation = 'walk_left' if cursor_x < self.curr_width else 'walk_right'
+                if self.current_animation != next_animation:
+                    self.current_animation = next_animation
+                    self.animation_index = 0
+                self.prev_cursor_x, self.prev_cursor_y = cursor_x, cursor_y
 
     def _update_geometry(self):
         if not self.in_home:
